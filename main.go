@@ -53,6 +53,7 @@ func exit(ctx context.Context) error {
 
 func start() context.Context {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		//chromedp.UserDataDir("C:\\Users\\Administrator\\AppData\\Local\\Google\\Chrome\\User Data"),
 		chromedp.Flag("headless", false),
 		chromedp.UserAgent("Mozilla/5.0 (X11; Linux x8664) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36"),
 		chromedp.Flag("enable-automation", false),
