@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/user"
+	"path/filepath"
+	"runtime"
 
 	"github.com/chromedp/chromedp"
 )
@@ -19,6 +22,7 @@ const (
 
 func main() {
 	fmt.Println("start -> open -> save -> exit")
+
 	var ctx context.Context
 	for {
 		var command string
@@ -52,8 +56,28 @@ func exit(ctx context.Context) error {
 }
 
 func start() context.Context {
+
+	user, err := user.Current()
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
+	homeDir := user.HomeDir
+
+	userDataDir := ""
+
+	switch runtime.GOOS {
+	case "windows":
+		userDataDir = filepath.Dir(homeDir + "/AppData/Local/Google/Chrome/User Data/")
+	case "darwin":
+		userDataDir = filepath.Dir(homeDir + "/AppData/Local/Google/Chrome/User Data/")
+	case "linux":
+		userDataDir = ""
+	}
+
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		//chromedp.UserDataDir("C:\\Users\\Administrator\\AppData\\Local\\Google\\Chrome\\User Data"),
+		chromedp.UserDataDir(userDataDir),
 		chromedp.Flag("headless", false),
 		chromedp.UserAgent("Mozilla/5.0 (X11; Linux x8664) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36"),
 		chromedp.Flag("enable-automation", false),
@@ -65,14 +89,15 @@ func start() context.Context {
 	)
 
 	allocCtx, _ := chromedp.NewExecAllocator(context.Background(), opts...)
-	ctx, _ := chromedp.NewContext(allocCtx)
-	if err := chromedp.Run(ctx, chromedp.Navigate(defaultBrowser)); err != nil {
+	//allocCtx, _ := chromedp.NewRemoteAllocator(context.Background(), opts...)
+	parentCtx, _ := chromedp.NewContext(allocCtx)
+	if err := chromedp.Run(parentCtx, chromedp.Navigate(defaultBrowser)); err != nil {
 		log.Println(err)
 	}
-	return ctx
+	return parentCtx
 }
 
-func open(appCtx context.Context) {
+func open(parentCtx context.Context) {
 	f, err := os.Open(dataFile)
 
 	if err != nil {
@@ -89,8 +114,8 @@ func open(appCtx context.Context) {
 		go func() {
 			for v := range ch {
 				if v != defaultBrowser {
-					ctx, _ := chromedp.NewContext(appCtx)
-					if err := chromedp.Run(ctx, chromedp.Navigate(v)); err != nil {
+					tabCtx, _ := chromedp.NewContext(parentCtx)
+					if err := chromedp.Run(tabCtx, chromedp.Navigate(v)); err != nil {
 						log.Println(err)
 					}
 				}
@@ -104,12 +129,12 @@ func open(appCtx context.Context) {
 
 }
 
-func save(appCtx context.Context) {
+func save(parentCtx context.Context) {
 	if err := os.Truncate(dataFile, 0); err != nil {
 		log.Printf("Failed to truncate: %v", err)
 	}
 
-	infos, _ := chromedp.Targets(appCtx)
+	infos, _ := chromedp.Targets(parentCtx)
 
 	ch := make(chan string, maxNumberOfTabs)
 
